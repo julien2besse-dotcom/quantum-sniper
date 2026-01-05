@@ -158,32 +158,37 @@ const MOCK_SYSTEM_LOGS: SystemLog[] = [
 ];
 
 // Static Z-Score history data (to avoid hydration errors)
-const STATIC_ZSCORE_HISTORY = [
-  { time: "00:00", "ATOM/DOT": 0.12, "SAND/MANA": -0.08, "CRV/CVX": 0.25 },
-  { time: "01:00", "ATOM/DOT": 0.34, "SAND/MANA": 0.15, "CRV/CVX": 0.18 },
-  { time: "02:00", "ATOM/DOT": 0.28, "SAND/MANA": 0.42, "CRV/CVX": -0.12 },
-  { time: "03:00", "ATOM/DOT": 0.55, "SAND/MANA": 0.38, "CRV/CVX": -0.28 },
-  { time: "04:00", "ATOM/DOT": 0.72, "SAND/MANA": 0.21, "CRV/CVX": -0.15 },
-  { time: "05:00", "ATOM/DOT": 0.88, "SAND/MANA": -0.12, "CRV/CVX": 0.08 },
-  { time: "06:00", "ATOM/DOT": 0.65, "SAND/MANA": -0.35, "CRV/CVX": 0.32 },
-  { time: "07:00", "ATOM/DOT": 0.42, "SAND/MANA": -0.48, "CRV/CVX": 0.45 },
-  { time: "08:00", "ATOM/DOT": 0.18, "SAND/MANA": -0.32, "CRV/CVX": 0.28 },
-  { time: "09:00", "ATOM/DOT": -0.15, "SAND/MANA": -0.18, "CRV/CVX": 0.12 },
-  { time: "10:00", "ATOM/DOT": -0.38, "SAND/MANA": 0.08, "CRV/CVX": -0.08 },
-  { time: "11:00", "ATOM/DOT": -0.52, "SAND/MANA": 0.25, "CRV/CVX": -0.22 },
-  { time: "12:00", "ATOM/DOT": -0.35, "SAND/MANA": 0.42, "CRV/CVX": -0.35 },
-  { time: "13:00", "ATOM/DOT": -0.12, "SAND/MANA": 0.58, "CRV/CVX": -0.18 },
-  { time: "14:00", "ATOM/DOT": 0.15, "SAND/MANA": 0.72, "CRV/CVX": 0.05 },
-  { time: "15:00", "ATOM/DOT": 0.38, "SAND/MANA": 0.85, "CRV/CVX": 0.22 },
-  { time: "16:00", "ATOM/DOT": 0.55, "SAND/MANA": 0.68, "CRV/CVX": 0.38 },
-  { time: "17:00", "ATOM/DOT": 0.72, "SAND/MANA": 0.45, "CRV/CVX": 0.25 },
-  { time: "18:00", "ATOM/DOT": 0.88, "SAND/MANA": 0.28, "CRV/CVX": 0.12 },
-  { time: "19:00", "ATOM/DOT": 0.95, "SAND/MANA": 0.12, "CRV/CVX": -0.05 },
-  { time: "20:00", "ATOM/DOT": 0.78, "SAND/MANA": -0.05, "CRV/CVX": -0.18 },
-  { time: "21:00", "ATOM/DOT": 0.55, "SAND/MANA": -0.18, "CRV/CVX": -0.08 },
-  { time: "22:00", "ATOM/DOT": 0.32, "SAND/MANA": -0.08, "CRV/CVX": 0.12 },
-  { time: "23:00", "ATOM/DOT": 0.18, "SAND/MANA": 0.05, "CRV/CVX": 0.25 },
-];
+// Generate dynamic Z-Score history (Last 24h ending at current hour)
+const generateZScoreHistory = () => {
+  const history = [];
+  const now = new Date();
+  const currentHour = now.getUTCHours();
+
+  for (let i = 23; i >= 0; i--) {
+    const d = new Date(now);
+    d.setUTCHours(currentHour - i);
+    const hour = d.getUTCHours();
+    const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
+
+    // Generate pseudo-random realistic looking movement
+    // Seed based on hour so it stays consistent between renders until hour changes
+    const seed = (hour + new Date().getUTCDate()) * 123;
+    const random = (min: number, max: number) => {
+      const x = Math.sin(seed + min) * 10000;
+      return (x - Math.floor(x)) * (max - min) + min;
+    };
+
+    history.push({
+      time: timeLabel,
+      "ATOM/DOT": Math.sin(hour * 0.5) * 0.5 + 0.1, // Smooth sine wave
+      "SAND/MANA": Math.cos(hour * 0.4) * 0.6 - 0.1,
+      "CRV/CVX": Math.sin(hour * 0.3 + 2) * 0.4 + 0.1,
+    });
+  }
+  return history;
+};
+
+const STATIC_ZSCORE_HISTORY = generateZScoreHistory();
 
 // ============================================================================
 // UTILITY COMPONENTS
