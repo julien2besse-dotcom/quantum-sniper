@@ -111,34 +111,81 @@ def log_signal(msg: str) -> None:
 # ============================================================================
 
 def create_exchange():
-    """Create CCXT Binance exchange instance (public mode)."""
-    try:
-        import ccxt
-        exchange = ccxt.binance({
+    """
+    Create CCXT exchange instance (public mode).
+    Tries multiple exchanges in case one is blocked (e.g., Binance in US).
+    """
+    import ccxt
+    
+    # List of exchanges to try (in order of preference)
+    exchanges_to_try = [
+        ("binance", {
             "enableRateLimit": True,
-            "options": {
-                "defaultType": "spot",
-                "adjustForTimeDifference": True,
-            },
-        })
-        exchange.load_markets()
-        log_success("Connected to Binance (Public API)")
-        return exchange
-    except Exception as e:
-        log_error(f"Failed to create exchange: {e}")
-        return None
+            "options": {"defaultType": "spot", "adjustForTimeDifference": True},
+        }),
+        ("bybit", {
+            "enableRateLimit": True,
+            "options": {"defaultType": "spot"},
+        }),
+        ("okx", {
+            "enableRateLimit": True,
+            "options": {"defaultType": "spot"},
+        }),
+        ("kraken", {
+            "enableRateLimit": True,
+        }),
+    ]
+    
+    for exchange_id, config in exchanges_to_try:
+        try:
+            exchange_class = getattr(ccxt, exchange_id)
+            exchange = exchange_class(config)
+            exchange.load_markets()
+            log_success(f"Connected to {exchange_id.upper()} (Public API)")
+            return exchange
+        except Exception as e:
+            log_warning(f"Failed to connect to {exchange_id}: {e}")
+            continue
+    
+    log_error("All exchanges failed. Cannot proceed.")
+    return None
+
+
+def normalize_symbol(exchange, symbol: str) -> str:
+    """Normalize symbol format for different exchanges."""
+    # Most exchanges use ATOM/USDT format
+    # Some may need different formatting
+    exchange_id = exchange.id.lower()
+    
+    if exchange_id == "kraken":
+        # Kraken uses XBT instead of BTC, and different format
+        symbol = symbol.replace("BTC/", "XBT/")
+    
+    return symbol
 
 
 def fetch_ohlcv(exchange, symbol: str, timeframe: str = "1h", limit: int = 100) -> Optional[pd.DataFrame]:
     """Fetch OHLCV data from exchange."""
     try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        # Normalize symbol for this exchange
+        normalized = normalize_symbol(exchange, symbol)
+        ohlcv = exchange.fetch_ohlcv(normalized, timeframe, limit=limit)
         df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         return df
     except Exception as e:
-        log_error(f"Failed to fetch OHLCV for {symbol}: {e}")
-        return None
+        log_warning(f"Failed to fetch OHLCV for {symbol}: {e}")
+        # Try alternative symbol format
+        try:
+            alt_symbol = symbol.replace("/USDT", "/USD")
+            ohlcv = exchange.fetch_ohlcv(alt_symbol, timeframe, limit=limit)
+            df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            log_info(f"Using alternative symbol: {alt_symbol}")
+            return df
+        except Exception:
+            log_error(f"Failed to fetch OHLCV for {symbol} (all formats)")
+            return None
 
 
 # ============================================================================
