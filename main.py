@@ -82,20 +82,43 @@ class Colors:
     DIM = '\033[2m'
 
 
-def log_info(msg: str) -> None:
+def log_to_supabase(level: str, source: str, message: str, details: str = None) -> None:
+    """Write log entry to Supabase system_logs table."""
+    try:
+        from supabase import create_client
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return
+
+        client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": level,
+            "source": source,
+            "message": message,
+            "details": details
+        }
+        client.table("system_logs").insert(data).execute()
+    except Exception as e:
+        print(f"{Colors.RED}[LOG ERROR] Failed to write to Supabase: {e}{Colors.ENDC}")
+
+def log_info(msg: str, source: str = "BOT", details: str = None) -> None:
     print(f"{Colors.CYAN}[INFO]{Colors.ENDC} {msg}")
+    log_to_supabase("INFO", source, msg, details)
 
 
-def log_success(msg: str) -> None:
+def log_success(msg: str, source: str = "BOT", details: str = None) -> None:
     print(f"{Colors.GREEN}[OK]{Colors.ENDC} {msg}")
+    log_to_supabase("SUCCESS", source, msg, details)
 
 
-def log_error(msg: str) -> None:
+def log_error(msg: str, source: str = "BOT", details: str = None) -> None:
     print(f"{Colors.RED}[ERROR]{Colors.ENDC} {msg}")
+    log_to_supabase("ERROR", source, msg, details)
 
 
-def log_warning(msg: str) -> None:
+def log_warning(msg: str, source: str = "BOT", details: str = None) -> None:
     print(f"{Colors.YELLOW}[WARN]{Colors.ENDC} {msg}")
+    log_to_supabase("WARNING", source, msg, details)
 
 
 def log_trade(msg: str) -> None:
@@ -349,15 +372,18 @@ def process_pair(exchange, client, pair: dict) -> None:
         return
 
     zscore, ratio = result
-    log_info(f"Z-Score: {zscore:.4f} | Ratio: {ratio:.4f}")
+    log_info(f"Z-Score calculated: {zscore:.4f} (no signal)", source=symbol, details=f"Ratio: {ratio:.4f}")
 
     # Update current Z-Score in database (for dashboard display)
-    update_bot_state(client, symbol, {"current_z": float(zscore)})
+    try:
+         update_bot_state(client, symbol, {"current_z": float(zscore)})
+    except Exception:
+         pass # Ignore if column missing
 
     # Get current bot state
     state = get_bot_state(client, symbol)
     if state is None:
-        log_warning(f"No state found for {symbol}. Skipping.")
+        log_warning(f"No state found for {symbol}. Skipping.", source=symbol)
         return
 
     is_active = state.get("is_active", False)
@@ -369,7 +395,7 @@ def process_pair(exchange, client, pair: dict) -> None:
     # ENTRY LOGIC
     # ========================================================================
     if not is_active:
-        log_info(f"Status: SCANNING (no position)")
+        # log_info(f"Status: SCANNING (no position)") # Start logging this only if necessary to avoid noise
 
         # Check for SHORT A / LONG B signal (Z > threshold)
         if zscore > Z_ENTRY_THRESHOLD:
@@ -414,6 +440,7 @@ def process_pair(exchange, client, pair: dict) -> None:
             )
 
             log_trade(f"SIMULATED ENTRY → {position} @ Z={zscore:.2f}")
+
 
         else:
             log_info(f"No signal. Z={zscore:.2f} within [-{Z_ENTRY_THRESHOLD}, +{Z_ENTRY_THRESHOLD}]")
