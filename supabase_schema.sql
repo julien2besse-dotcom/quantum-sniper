@@ -23,6 +23,7 @@ CREATE TABLE bot_state (
     position_type TEXT,  -- 'LONG_A_SHORT_B' or 'SHORT_A_LONG_B'
     entry_z FLOAT,
     entry_ratio FLOAT,
+    current_z FLOAT,  -- Current Z-Score (updated each run for dashboard)
     last_updated TIMESTAMPTZ DEFAULT NOW()
 );
 

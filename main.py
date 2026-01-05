@@ -351,6 +351,9 @@ def process_pair(exchange, client, pair: dict) -> None:
     zscore, ratio = result
     log_info(f"Z-Score: {zscore:.4f} | Ratio: {ratio:.4f}")
 
+    # Update current Z-Score in database (for dashboard display)
+    update_bot_state(client, symbol, {"current_z": float(zscore)})
+
     # Get current bot state
     state = get_bot_state(client, symbol)
     if state is None:
