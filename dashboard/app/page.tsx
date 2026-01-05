@@ -45,6 +45,7 @@ interface BotState {
   position_type: string | null;
   entry_z: number | null;
   entry_ratio: number | null;
+  current_z?: number | null;
   last_updated: string;
 }
 
@@ -233,9 +234,8 @@ function SystemStatus({ isConnected }: { isConnected: boolean }) {
         <span className="text-zinc-500 text-xs uppercase tracking-wider">Status</span>
         <div className="relative">
           <div
-            className={`w-2.5 h-2.5 rounded-full ${
-              isConnected ? "bg-emerald-500" : "bg-rose-500"
-            }`}
+            className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-emerald-500" : "bg-rose-500"
+              }`}
           />
           {isConnected && (
             <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
@@ -325,12 +325,11 @@ function StatCard({
       <div className="flex items-end gap-2">
         <span className="text-2xl font-mono font-bold text-white">{value}</span>
         {trend && (
-          <span className={`flex items-center text-sm ${
-            trend === "up" ? "text-emerald-400" :
+          <span className={`flex items-center text-sm ${trend === "up" ? "text-emerald-400" :
             trend === "down" ? "text-rose-400" : "text-zinc-500"
-          }`}>
+            }`}>
             {trend === "up" ? <ArrowUpRight className="w-4 h-4" /> :
-             trend === "down" ? <ArrowDownRight className="w-4 h-4" /> : null}
+              trend === "down" ? <ArrowDownRight className="w-4 h-4" /> : null}
           </span>
         )}
       </div>
@@ -355,7 +354,7 @@ function PairCard({ state, index, zScore }: { state: BotState; index: number; zS
 
   const displayZ = zScore ?? defaultZScores[index] ?? 0;
   const zColor = Math.abs(displayZ) > 2 ? "text-rose-400" :
-                 Math.abs(displayZ) > 1.5 ? "text-amber-400" : "text-emerald-400";
+    Math.abs(displayZ) > 1.5 ? "text-amber-400" : "text-emerald-400";
 
   return (
     <div className={`${bgColor} border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition-all`}>
@@ -506,10 +505,9 @@ function TradeLogsTable({ logs }: { logs: TradeLog[] }) {
               {/* PnL */}
               <div className="w-20 text-right">
                 <div className="text-xs text-zinc-500">PnL</div>
-                <div className={`font-mono text-sm font-semibold ${
-                  log.pnl_percent > 0 ? "text-emerald-400" :
+                <div className={`font-mono text-sm font-semibold ${log.pnl_percent > 0 ? "text-emerald-400" :
                   log.pnl_percent < 0 ? "text-rose-400" : "text-zinc-500"
-                }`}>
+                  }`}>
                   {log.pnl_percent !== 0 ? `${log.pnl_percent > 0 ? "+" : ""}${log.pnl_percent.toFixed(2)}%` : "—"}
                 </div>
               </div>
@@ -603,7 +601,26 @@ export default function Dashboard() {
   const totalPnL = tradeLogs.reduce((acc, l) => acc + (l.pnl_percent || 0), 0);
   const activePositions = botStates.filter(s => s.is_active).length;
   const winRate = tradeLogs.filter(l => l.type === "EXIT" && l.pnl_percent > 0).length /
-                 Math.max(1, tradeLogs.filter(l => l.type === "EXIT").length) * 100;
+    Math.max(1, tradeLogs.filter(l => l.type === "EXIT").length) * 100;
+
+  // Extract Z-scores from system logs (fallback when current_z column doesn't exist)
+  const extractZScoresFromLogs = (logs: SystemLog[]): Record<string, number> => {
+    const zScores: Record<string, number> = {};
+    const pairNames = ["ATOM/DOT", "SAND/MANA", "CRV/CVX"];
+
+    for (const pair of pairNames) {
+      const log = logs.find(l => l.source === pair && l.message.includes("Z-Score calculated"));
+      if (log) {
+        const match = log.message.match(/Z-Score calculated:\s*([-\d.]+)/);
+        if (match) {
+          zScores[pair] = parseFloat(match[1]);
+        }
+      }
+    }
+    return zScores;
+  };
+
+  const zScoresFromLogs = extractZScoresFromLogs(systemLogs);
 
   // Fetch data from Supabase
   const fetchData = useCallback(async () => {
@@ -709,11 +726,10 @@ export default function Dashboard() {
             {/* Auto-refresh toggle */}
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
-                autoRefresh
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-500"
-              }`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${autoRefresh
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                : "bg-zinc-900 border-zinc-800 text-zinc-500"
+                }`}
             >
               {autoRefresh ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               <span className="text-sm">Auto</span>
@@ -784,10 +800,9 @@ export default function Dashboard() {
           {/* Risk Module */}
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-2 mb-6">
-              <AlertCircle className={`w-5 h-5 ${
-                sentiment.risk_score <= 50 ? "text-emerald-500" :
+              <AlertCircle className={`w-5 h-5 ${sentiment.risk_score <= 50 ? "text-emerald-500" :
                 sentiment.risk_score <= 75 ? "text-amber-500" : "text-rose-500"
-              }`} />
+                }`} />
               <h2 className="font-semibold text-zinc-300">Risk Level</h2>
             </div>
             <RiskGauge score={sentiment.risk_score} sentiment={sentiment.sentiment} />
@@ -799,7 +814,12 @@ export default function Dashboard() {
           {/* Portfolio Cards */}
           <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4">
             {botStates.map((state, index) => (
-              <PairCard key={state.symbol} state={state} index={index} />
+              <PairCard
+                key={state.symbol}
+                state={state}
+                index={index}
+                zScore={zScoresFromLogs[state.symbol] ?? state.current_z}
+              />
             ))}
           </div>
         </div>
