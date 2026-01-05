@@ -352,20 +352,41 @@ function StatCard({
 }
 
 function PairCard({ state, index, zScore }: { state: BotState; index: number; zScore?: number }) {
-  const names = ["The Shield", "The Stability", "The Rocket"];
-  const icons = [Shield, BarChart3, Zap];
-  const allocations = ["40%", "35%", "25%"];
-  const colors = ["text-blue-400", "text-purple-400", "text-orange-400"];
-  const bgColors = ["bg-blue-500/10", "bg-purple-500/10", "bg-orange-500/10"];
-  const defaultZScores = [0.65, 0.22, 0.25]; // Static fallback values
+  // Map configuration by Symbol instead of Index to prevent sorting mismatches
+  const config: Record<string, { name: string; icon: any; allocation: string; color: string; bgColor: string }> = {
+    "ATOM/DOT": {
+      name: "The Shield",
+      icon: Shield,
+      allocation: "40%",
+      color: "text-blue-400",
+      bgColor: "bg-blue-500/10"
+    },
+    "SAND/MANA": {
+      name: "The Stability",
+      icon: BarChart3,
+      allocation: "35%",
+      color: "text-purple-400",
+      bgColor: "bg-purple-500/10"
+    },
+    "CRV/CVX": {
+      name: "The Rocket",
+      icon: Zap,
+      allocation: "25%",
+      color: "text-orange-400",
+      bgColor: "bg-orange-500/10"
+    }
+  };
 
-  const Icon = icons[index] || Activity;
-  const name = names[index] || "Pair";
-  const allocation = allocations[index] || "0%";
-  const color = colors[index] || "text-indigo-400";
-  const bgColor = bgColors[index] || "bg-indigo-500/10";
+  const currentConfig = config[state.symbol] || {
+    name: "Pair",
+    icon: Activity,
+    allocation: "0%",
+    color: "text-indigo-400",
+    bgColor: "bg-indigo-500/10"
+  };
 
-  const displayZ = zScore ?? defaultZScores[index] ?? 0;
+  const { name, icon: Icon, allocation, color, bgColor } = currentConfig;
+  const displayZ = zScore ?? 0;
   const zColor = Math.abs(displayZ) > 2 ? "text-rose-400" :
     Math.abs(displayZ) > 1.5 ? "text-amber-400" : "text-emerald-400";
 
