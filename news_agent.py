@@ -2,8 +2,8 @@
 """
 Quantum Sniper - News Agent (Daily Risk Check)
 ==============================================
-Scans crypto RSS feeds and uses Google Gemini AI to generate
-a risk score for trading decisions.
+Scans crypto RSS feeds AND searches the internet using Google Gemini 3
+to generate a risk score for trading decisions.
 
 Runs daily at 08:00 UTC via GitHub Actions.
 
@@ -14,6 +14,7 @@ Usage:
 import os
 import sys
 import json
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from dotenv import load_dotenv
@@ -29,7 +30,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Keywords to filter relevant news
+# Keywords to filter relevant news (for RSS pre-filtering)
 KEYWORDS = [
     "Cosmos", "ATOM",
     "Polkadot", "DOT",
@@ -42,7 +43,7 @@ KEYWORDS = [
     "Binance", "Exchange",
 ]
 
-# RSS Feeds to scan
+# RSS Feeds to scan (Initial context)
 RSS_FEEDS = [
     "https://cointelegraph.com/rss",
     "https://cryptonews.com/news/feed/",
@@ -50,6 +51,9 @@ RSS_FEEDS = [
     "https://www.coindesk.com/arc/outboundfeeds/rss/",
     "https://bitcoinist.com/feed/",
 ]
+
+# MOdel Configuration
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 # ============================================================================
 # COLORS FOR CONSOLE OUTPUT
@@ -94,16 +98,15 @@ def fetch_rss_headlines() -> list[dict]:
     import feedparser
 
     headlines = []
-    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
-
-    log_info(f"Scanning {len(RSS_FEEDS)} RSS feeds...")
+    
+    log_info(f"Scanning {len(RSS_FEEDS)} RSS feeds for initial context...")
 
     for feed_url in RSS_FEEDS:
         try:
             feed = feedparser.parse(feed_url)
             source = feed.feed.get("title", feed_url)
 
-            for entry in feed.entries[:20]:  # Last 20 entries per feed
+            for entry in feed.entries[:10]:  # Limit to 10 entries per feed to avoid noise
                 title = entry.get("title", "")
                 link = entry.get("link", "")
 
@@ -122,115 +125,116 @@ def fetch_rss_headlines() -> list[dict]:
             log_warning(f"Failed to parse {feed_url}: {e}")
             continue
 
-    log_success(f"Found {len(headlines)} relevant headlines")
+    log_success(f"Found {len(headlines)} relevant headlines from RSS")
     return headlines
 
 
 # ============================================================================
-# GEMINI AI ANALYSIS
+# GEMINI AI ANALYSIS (WITH GOOGLE SEARCH)
 # ============================================================================
-
-def configure_gemini() -> bool:
-    """Configure Google Generative AI with API key."""
-    if not GEMINI_API_KEY:
-        log_error("GEMINI_API_KEY not found in environment")
-        return False
-
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        log_success("Gemini AI configured")
-        return True
-    except Exception as e:
-        log_error(f"Failed to configure Gemini: {e}")
-        return False
-
 
 def analyze_with_gemini(headlines: list[dict]) -> Optional[dict]:
     """
-    Send headlines to Gemini for risk analysis.
+    Send headlines to Gemini 3 AND perform Google Search for real-time risk analysis.
     Returns {risk_score: 0-100, sentiment: str, summary: str}.
     """
-    import google.generativeai as genai
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        log_error("google-genai package not found. Please install it.")
+        return None
 
-    if not headlines:
-        log_info("No relevant headlines found. Using baseline risk.")
-        return {
-            "risk_score": 30,
-            "sentiment": "SAFE",
-            "summary": "No significant news detected for monitored assets. Market conditions appear stable."
-        }
+    if not GEMINI_API_KEY:
+        log_error("GEMINI_API_KEY not found")
+        return None
 
-    # Prepare headlines text
-    headlines_text = "\n".join([
-        f"- {h['title']} (Source: {h['source']})"
-        for h in headlines[:15]  # Limit to 15 headlines
-    ])
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    
+    # Prepare headlines context
+    headlines_text = "N/A"
+    if headlines:
+        headlines_text = "\n".join([
+            f"- {h['title']} (Source: {h['source']})"
+            for h in headlines[:10]
+        ])
 
-    prompt = f"""You are a crypto market risk analyst. Analyze the following news headlines and provide a risk assessment for trading the following pairs: ATOM/DOT, SAND/MANA, CRV/CVX.
+    log_info(f"Connecting to {GEMINI_MODEL}...")
+    log_info("Performing analysis with Google Search Grounding...")
 
-HEADLINES:
-{headlines_text}
-
-Respond ONLY with a valid JSON object (no markdown, no code blocks):
-{{
-    "risk_score": <integer 0-100, where 0=no risk, 100=extreme risk>,
-    "sentiment": "<SAFE|CAUTION|CRITICAL>",
-    "summary": "<2-3 sentence summary of market conditions and key risks>"
-}}
-
-Risk scoring guide:
-- 0-30: SAFE - Normal market conditions, no significant threats
-- 31-50: SAFE - Minor concerns, proceed with normal trading
-- 51-75: CAUTION - Elevated risk, reduce position sizes
-- 76-100: CRITICAL - High risk detected (hacks, regulatory action, market crash), halt trading
-
-Focus on:
-1. Security threats (hacks, exploits)
-2. Regulatory news (SEC actions, bans)
-3. Market crashes or liquidations
-4. Specific news about ATOM, DOT, SAND, MANA, CRV, CVX
-"""
+    prompt = f"""
+    You are a professional crypto market risk analyst.
+    
+    Task:
+    1. A list of recent RSS headlines is provided below for context.
+    2. CRITICAL: Use your Google Search tool to find the VERY LATEST updates (last 24 hours) for the following assets:
+       - Cosmos (ATOM) / Polkadot (DOT)
+       - Sandbox (SAND) / Decentraland (MANA)
+       - Curve (CRV) / Convex (CVX)
+    
+    3. Look specifically for:
+       - Security breaches, hacks, or exploits.
+       - Major regulatory enforcement actions (SEC, bans).
+       - Sudden market crashes or liquidity crises.
+    
+    RSS CONTEXT (Use as a starting point):
+    {headlines_text}
+    
+    OUTPUT FORMAT:
+    Respond ONLY with a valid JSON object. Do not include markdown formatting (like ```json).
+    {{
+        "risk_score": <integer 0-100, where 0=safe, 100=extreme panic>,
+        "sentiment": "<SAFE|CAUTION|CRITICAL>",
+        "summary": "<Concise summary of current market risks found via search. Cite verified sources if possible.>"
+    }}
+    
+    Risk Guide:
+    - 0-30: SAFE (Normal volatility)
+    - 31-50: SAFE (Minor bad news)
+    - 51-75: CAUTION (Hacks, major FUD, or downtrend)
+    - 76-100: CRITICAL (Exchange collapse, protocol hack, systemic risk)
+    """
 
     try:
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                temperature=0.1, # Low temperature for factual analysis
+            )
+        )
 
-        # Extract text and parse JSON
+        # Extract text
         response_text = response.text.strip()
-
-        # Clean up response if it has markdown code blocks
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            response_text = "\n".join(lines[1:-1])
+        
+        # Clean up markdown if present (Gemini might still add it despite instructions)
+        if "```" in response_text:
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+            if match:
+                response_text = match.group(1).strip()
 
         result = json.loads(response_text)
 
-        # Validate response structure
+        # Validate fields
         if "risk_score" not in result:
-            raise ValueError("Missing risk_score in response")
+            raise ValueError("Missing risk_score")
+        
+        # Sanitize
+        result["risk_score"] = int(result["risk_score"])
+        if result["sentiment"] not in ["SAFE", "CAUTION", "CRITICAL"]:
+             result["sentiment"] = "CAUTION" # Fallback
 
-        # Ensure risk_score is valid
-        result["risk_score"] = max(0, min(100, int(result["risk_score"])))
-
-        # Ensure sentiment is valid
-        if result.get("sentiment") not in ["SAFE", "CAUTION", "CRITICAL"]:
-            if result["risk_score"] <= 50:
-                result["sentiment"] = "SAFE"
-            elif result["risk_score"] <= 75:
-                result["sentiment"] = "CAUTION"
-            else:
-                result["sentiment"] = "CRITICAL"
-
-        log_success(f"Gemini analysis complete: Risk={result['risk_score']}, Sentiment={result['sentiment']}")
+        log_success(f"Analysis complete: Risk={result['risk_score']} ({result['sentiment']})")
         return result
 
-    except json.JSONDecodeError as e:
-        log_error(f"Failed to parse Gemini response as JSON: {e}")
-        log_warning(f"Raw response: {response_text[:500]}")
-        return None
     except Exception as e:
         log_error(f"Gemini analysis failed: {e}")
+        # Try to print more details about the error if it's a 400 or similar
+        try:
+             print(f"Raw response (if available): {response_text}")
+        except:
+            pass
         return None
 
 
@@ -271,26 +275,14 @@ def save_to_supabase(analysis: dict) -> bool:
 
 def main():
     print(f"\n{Colors.HEADER}{'='*70}{Colors.ENDC}")
-    print(f"{Colors.BOLD}  QUANTUM SNIPER - NEWS AGENT{Colors.ENDC}")
+    print(f"{Colors.BOLD}  QUANTUM SNIPER - NEWS AGENT (GEMINI 3 + SEARCH){Colors.ENDC}")
     print(f"  {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{Colors.HEADER}{'='*70}{Colors.ENDC}\n")
 
-    # Step 1: Configure Gemini
-    if not configure_gemini():
-        log_error("Cannot proceed without Gemini API")
-        sys.exit(1)
-
-    # Step 2: Fetch RSS headlines
-    print()
+    # Step 1: Fetch RSS (Context)
     headlines = fetch_rss_headlines()
 
-    # Log sample headlines
-    if headlines:
-        print(f"\n{Colors.BLUE}Sample Headlines:{Colors.ENDC}")
-        for h in headlines[:5]:
-            print(f"  - {h['title'][:70]}...")
-
-    # Step 3: Analyze with Gemini
+    # Step 2: Analyze with Gemini 3 (Search)
     print()
     analysis = analyze_with_gemini(headlines)
 
@@ -299,10 +291,10 @@ def main():
         analysis = {
             "risk_score": 50,
             "sentiment": "CAUTION",
-            "summary": "Analysis failed. Using default caution level."
+            "summary": "AI Analysis failed or timed out. System operating in default caution mode."
         }
 
-    # Step 4: Display results
+    # Step 3: Display results
     print(f"\n{Colors.HEADER}{'='*70}{Colors.ENDC}")
     print(f"{Colors.BOLD}  RISK ANALYSIS RESULTS{Colors.ENDC}")
     print(f"{Colors.HEADER}{'='*70}{Colors.ENDC}\n")
@@ -326,7 +318,7 @@ def main():
     if risk > 75:
         print(f"\n  {Colors.RED}{Colors.BOLD}TRADING HALTED - Risk too high!{Colors.ENDC}")
 
-    # Step 5: Save to Supabase
+    # Step 4: Save to Supabase
     print()
     if not save_to_supabase(analysis):
         log_warning("Results not saved to database")

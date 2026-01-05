@@ -25,3 +25,4 @@ colorama>=0.4.6
 
 # HTTP requests (for Supabase SQL API)
 requests>=2.31.0
+google-genai
