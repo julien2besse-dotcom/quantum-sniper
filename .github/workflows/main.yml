@@ -1,0 +1,155 @@
+# ============================================================================
+# QUANTUM SNIPER - GitHub Actions Workflow
+# ============================================================================
+# Job 1: News Agent - Runs daily at 08:00 UTC
+# Job 2: Trading Engine - Runs hourly at minute 0
+# ============================================================================
+
+name: Quantum Sniper Bot
+
+on:
+  schedule:
+    # News Agent: Daily at 08:00 UTC
+    - cron: '0 8 * * *'
+    # Trading Engine: Every hour at minute 0
+    - cron: '0 * * * *'
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      job_type:
+        description: 'Job to run'
+        required: true
+        default: 'trade'
+        type: choice
+        options:
+          - trade
+          - news
+          - both
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ========================================================================
+  # JOB 1: NEWS AGENT (Daily Risk Analysis)
+  # ========================================================================
+  news_agent:
+    name: 📰 News Agent
+    runs-on: ubuntu-latest
+
+    # Run at 08:00 UTC OR manual trigger with 'news' or 'both'
+    if: |
+      github.event.schedule == '0 8 * * *' ||
+      github.event.inputs.job_type == 'news' ||
+      github.event.inputs.job_type == 'both'
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 📰 Run News Agent
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          echo "Starting News Agent at $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+          python news_agent.py
+
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## 📰 News Agent Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time:** $(date -u '+%Y-%m-%d %H:%M:%S') UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  # ========================================================================
+  # JOB 2: TRADING ENGINE (Hourly Simulation)
+  # ========================================================================
+  trading_engine:
+    name: 🚀 Trading Engine
+    runs-on: ubuntu-latest
+
+    # Run hourly OR manual trigger with 'trade' or 'both'
+    if: |
+      github.event.schedule == '0 * * * *' ||
+      github.event.inputs.job_type == 'trade' ||
+      github.event.inputs.job_type == 'both'
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🚀 Run Trading Engine
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "Starting Trading Engine at $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+          echo "Mode: SIMULATION (no real trades)"
+          python main.py
+
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## 🚀 Trading Engine Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time:** $(date -u '+%Y-%m-%d %H:%M:%S') UTC" >> $GITHUB_STEP_SUMMARY
+          echo "- **Mode:** Simulation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pairs:** ATOM/DOT, SAND/MANA, CRV/CVX" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+
+  # ========================================================================
+  # JOB 3: DATABASE SETUP (Manual Only)
+  # ========================================================================
+  setup_database:
+    name: 🗄️ Database Setup
+    runs-on: ubuntu-latest
+
+    # Only run manually - not scheduled
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_type == 'setup'
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🗄️ Setup Database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          echo "Initializing database tables..."
+          python setup_db.py

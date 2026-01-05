@@ -1,0 +1,27 @@
+# Quantum Sniper - Dependencies
+# Trading Bot Simulation
+
+# Exchange connectivity
+ccxt>=4.2.0
+
+# Data processing
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Database (Supabase)
+supabase>=2.3.0
+
+# RSS Feed parsing
+feedparser>=6.0.10
+
+# Google Gemini AI
+google-generativeai>=0.3.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Optional: Better console output
+colorama>=0.4.6
+
+# HTTP requests (for Supabase SQL API)
+requests>=2.31.0
