@@ -909,9 +909,10 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey={() => -2} stroke="#f43f5e" strokeDasharray="5 5" dot={false} />
                   <Line type="monotone" dataKey={() => 0} stroke="#52525b" strokeDasharray="3 3" dot={false} />
                   {/* Z-Score lines */}
-                  <Line type="monotone" dataKey="ATOM/DOT" stroke="#60a5fa" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="SAND/MANA" stroke="#a78bfa" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="CRV/CVX" stroke="#fb923c" strokeWidth={2} dot={false} />
+                  {/* Z-Score lines - Matching PairCard colors */}
+                  <Line type="monotone" dataKey="ATOM/DOT" stroke="#3b82f6" strokeWidth={2} dot={false} />  {/* Blue-500 */}
+                  <Line type="monotone" dataKey="SAND/MANA" stroke="#a855f7" strokeWidth={2} dot={false} /> {/* Purple-500 */}
+                  <Line type="monotone" dataKey="CRV/CVX" stroke="#f97316" strokeWidth={2} dot={false} />   {/* Orange-500 */}
                 </LineChart>
               </ResponsiveContainer>
             </div>
