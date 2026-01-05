@@ -158,21 +158,20 @@ const MOCK_SYSTEM_LOGS: SystemLog[] = [
 ];
 
 // Static Z-Score history data (to avoid hydration errors)
-// Generate dynamic Z-Score history (Last 24h ending at current hour)
+// Generate dynamic Z-Score history (Last 24h ending at current hour LOCAL TIME)
 const generateZScoreHistory = () => {
   const history = [];
   const now = new Date();
-  const currentHour = now.getUTCHours();
+  const currentHour = now.getHours(); // Use local time
 
   for (let i = 23; i >= 0; i--) {
     const d = new Date(now);
-    d.setUTCHours(currentHour - i);
-    const hour = d.getUTCHours();
+    d.setHours(currentHour - i);
+    const hour = d.getHours();
     const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
 
     // Generate pseudo-random realistic looking movement
-    // Seed based on hour so it stays consistent between renders until hour changes
-    const seed = (hour + new Date().getUTCDate()) * 123;
+    const seed = (hour + now.getDate()) * 123;
     const random = (min: number, max: number) => {
       const x = Math.sin(seed + min) * 10000;
       return (x - Math.floor(x)) * (max - min) + min;
@@ -180,7 +179,7 @@ const generateZScoreHistory = () => {
 
     history.push({
       time: timeLabel,
-      "ATOM/DOT": Math.sin(hour * 0.5) * 0.5 + 0.1, // Smooth sine wave
+      "ATOM/DOT": Math.sin(hour * 0.5) * 0.5 + 0.1,
       "SAND/MANA": Math.cos(hour * 0.4) * 0.6 - 0.1,
       "CRV/CVX": Math.sin(hour * 0.3 + 2) * 0.4 + 0.1,
     });
@@ -203,7 +202,7 @@ function LiveClock() {
       const now = new Date();
       setTime(
         now.toLocaleTimeString("en-US", {
-          timeZone: "UTC",
+          // timeZone: "UTC", // Removed to use local time
           hour12: false,
           hour: "2-digit",
           minute: "2-digit",
@@ -212,7 +211,7 @@ function LiveClock() {
       );
       setDate(
         now.toLocaleDateString("en-US", {
-          timeZone: "UTC",
+          // timeZone: "UTC", // Removed to use local time
           year: "numeric",
           month: "short",
           day: "numeric",
@@ -227,7 +226,7 @@ function LiveClock() {
   return (
     <div className="text-right" suppressHydrationWarning>
       <div className="font-mono text-lg text-white" suppressHydrationWarning>{time}</div>
-      <div className="text-xs text-zinc-500" suppressHydrationWarning>{date} UTC</div>
+      <div className="text-xs text-zinc-500" suppressHydrationWarning>{date}</div>
     </div>
   );
 }
@@ -550,7 +549,7 @@ function SystemLogsPanel({ logs }: { logs: SystemLog[] }) {
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString("en-US", {
-      timeZone: "UTC",
+      // timeZone: "UTC", // Removed to use local
       hour12: false,
       hour: "2-digit",
       minute: "2-digit",
