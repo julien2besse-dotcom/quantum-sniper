@@ -474,7 +474,7 @@ function TradeLogsTable({ logs }: { logs: TradeLog[] }) {
           return (
             <div
               key={log.id}
-              className="flex items-center gap-4 p-3 bg-zinc-900/30 rounded-lg border border-zinc-800/50 hover:border-zinc-700/50 transition-colors"
+              className="flex items-center gap-4 p-3 bg-zinc-900/30 rounded-lg border border-zinc-800/50 hover:border-zinc-700/50 transition-colors min-w-[600px]"
             >
               {/* Icon */}
               <div className="p-2 bg-zinc-800 rounded-lg">
@@ -710,7 +710,7 @@ export default function Dashboard() {
       {/* HEADER */}
       {/* ================================================================== */}
       <header className="border-b border-zinc-800 px-6 py-4 sticky top-0 bg-black/95 backdrop-blur z-50">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="p-2.5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl">
               <Activity className="w-6 h-6" />
@@ -726,7 +726,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap justify-center items-center gap-4">
             {/* Auto-refresh toggle */}
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
@@ -770,7 +770,7 @@ export default function Dashboard() {
         {/* ================================================================ */}
         {/* TOP STATS ROW */}
         {/* ================================================================ */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             icon={Target}
             label="Active Positions"
@@ -933,14 +933,16 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
-          <TradeLogsTable logs={tradeLogs.slice(0, 20)} />
+          <div className="overflow-x-auto">
+            <TradeLogsTable logs={tradeLogs.slice(0, 20)} />
+          </div>
         </div>
 
         {/* ================================================================ */}
         {/* FOOTER */}
         {/* ================================================================ */}
         <footer className="text-center text-zinc-600 text-xs py-4 border-t border-zinc-800">
-          <div className="font-mono flex items-center justify-center gap-4">
+          <div className="font-mono flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4">
             <span>QUANTUM SNIPER v1.0</span>
             <span>•</span>
             <span>Simulation Mode</span>
