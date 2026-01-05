@@ -159,35 +159,44 @@ const MOCK_SYSTEM_LOGS: SystemLog[] = [
 
 // Static Z-Score history data (to avoid hydration errors)
 // Generate dynamic Z-Score history (Last 24h ending at current hour LOCAL TIME)
-const generateZScoreHistory = () => {
-  const history = [];
+// Process system logs to generate Z-Score history
+const processZScoreHistory = (logs: SystemLog[]) => {
+  const historyMap = new Map<string, any>();
   const now = new Date();
-  const currentHour = now.getHours(); // Use local time
 
+  // Initialize last 24h with nulls
   for (let i = 23; i >= 0; i--) {
     const d = new Date(now);
-    d.setHours(currentHour - i);
-    const hour = d.getHours();
-    const timeLabel = `${hour.toString().padStart(2, '0')}:00`;
-
-    // Generate pseudo-random realistic looking movement
-    const seed = (hour + now.getDate()) * 123;
-    const random = (min: number, max: number) => {
-      const x = Math.sin(seed + min) * 10000;
-      return (x - Math.floor(x)) * (max - min) + min;
-    };
-
-    history.push({
-      time: timeLabel,
-      "ATOM/DOT": Math.sin(hour * 0.5) * 0.5 + 0.1,
-      "SAND/MANA": Math.cos(hour * 0.4) * 0.6 - 0.1,
-      "CRV/CVX": Math.sin(hour * 0.3 + 2) * 0.4 + 0.1,
-    });
+    d.setHours(now.getHours() - i, 0, 0, 0); // Round to hour
+    const timeLabel = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    historyMap.set(timeLabel, { time: timeLabel }); // Initialize object
   }
-  return history;
+
+  // Parse logs
+  // Log format: "Z-Score calculated: 0.8474 (no signal)"
+  // Source: "ATOM/DOT"
+  logs.forEach(log => {
+    if (log.message.includes("Z-Score calculated")) {
+      const match = log.message.match(/Z-Score calculated:\s*([-\d.]+)/);
+      if (match) {
+        const val = parseFloat(match[1]);
+        const d = new Date(log.timestamp);
+        // Round to nearest hour for the chart x-axis matching
+        d.setMinutes(0, 0, 0);
+        const bucketLabel = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+        if (historyMap.has(bucketLabel)) {
+          const entry = historyMap.get(bucketLabel);
+          entry[log.source] = val;
+        }
+      }
+    }
+  });
+
+  return Array.from(historyMap.values());
 };
 
-const STATIC_ZSCORE_HISTORY = generateZScoreHistory();
+const STATIC_ZSCORE_HISTORY: any[] = [];
 
 // ============================================================================
 // UTILITY COMPONENTS
@@ -588,7 +597,7 @@ export default function Dashboard() {
   const [sentiment, setSentiment] = useState<MarketSentiment>(MOCK_SENTIMENT);
   const [tradeLogs, setTradeLogs] = useState<TradeLog[]>(MOCK_TRADE_LOGS);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>(MOCK_SYSTEM_LOGS);
-  const [zscoreHistory] = useState(STATIC_ZSCORE_HISTORY);
+  const [zscoreHistory, setZscoreHistory] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string>(INITIAL_TIMESTAMP);
   const [isLoading, setIsLoading] = useState(false);
@@ -674,10 +683,11 @@ export default function Dashboard() {
           .from("system_logs")
           .select("*")
           .order("timestamp", { ascending: false })
-          .limit(30);
+          .limit(200); // Increased limit for graph history
 
         if (!sysLogsError && sysLogs && sysLogs.length > 0) {
           setSystemLogs(sysLogs);
+          setZscoreHistory(processZScoreHistory(sysLogs));
         }
       } catch {
         // Table might not exist yet
