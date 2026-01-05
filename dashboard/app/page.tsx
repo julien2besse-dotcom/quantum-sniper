@@ -26,8 +26,6 @@ import {
   Target,
 } from "lucide-react";
 import {
-  AreaChart,
-  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -95,6 +93,8 @@ if (supabaseUrl && supabaseAnonKey) {
 // MOCK DATA (Fallback when DB is empty)
 // ============================================================================
 
+const INITIAL_TIMESTAMP = "2026-01-05T12:00:00.000Z";
+
 const MOCK_BOT_STATES: BotState[] = [
   {
     symbol: "ATOM/DOT",
@@ -102,7 +102,7 @@ const MOCK_BOT_STATES: BotState[] = [
     position_type: null,
     entry_z: null,
     entry_ratio: null,
-    last_updated: new Date().toISOString(),
+    last_updated: INITIAL_TIMESTAMP,
   },
   {
     symbol: "SAND/MANA",
@@ -110,7 +110,7 @@ const MOCK_BOT_STATES: BotState[] = [
     position_type: null,
     entry_z: null,
     entry_ratio: null,
-    last_updated: new Date().toISOString(),
+    last_updated: INITIAL_TIMESTAMP,
   },
   {
     symbol: "CRV/CVX",
@@ -118,13 +118,13 @@ const MOCK_BOT_STATES: BotState[] = [
     position_type: null,
     entry_z: null,
     entry_ratio: null,
-    last_updated: new Date().toISOString(),
+    last_updated: INITIAL_TIMESTAMP,
   },
 ];
 
 const MOCK_SENTIMENT: MarketSentiment = {
   id: 0,
-  timestamp: new Date().toISOString(),
+  timestamp: INITIAL_TIMESTAMP,
   risk_score: 35,
   sentiment: "SAFE",
   summary:
@@ -134,7 +134,7 @@ const MOCK_SENTIMENT: MarketSentiment = {
 const MOCK_TRADE_LOGS: TradeLog[] = [
   {
     id: 1,
-    timestamp: new Date().toISOString(),
+    timestamp: INITIAL_TIMESTAMP,
     pair: "SYSTEM",
     type: "INIT",
     side: "NONE",
@@ -148,7 +148,7 @@ const MOCK_TRADE_LOGS: TradeLog[] = [
 const MOCK_SYSTEM_LOGS: SystemLog[] = [
   {
     id: 1,
-    timestamp: new Date().toISOString(),
+    timestamp: INITIAL_TIMESTAMP,
     level: "INFO",
     source: "SYSTEM",
     message: "Dashboard initialized",
@@ -156,38 +156,41 @@ const MOCK_SYSTEM_LOGS: SystemLog[] = [
   },
 ];
 
-// Mock Z-Score history data
-const generateMockZScoreHistory = () => {
-  const data = [];
-  let z1 = 0, z2 = 0, z3 = 0;
-  for (let i = 23; i >= 0; i--) {
-    z1 += (Math.random() - 0.5) * 0.6;
-    z2 += (Math.random() - 0.5) * 0.5;
-    z3 += (Math.random() - 0.5) * 0.4;
-    z1 = Math.max(-3, Math.min(3, z1));
-    z2 = Math.max(-3, Math.min(3, z2));
-    z3 = Math.max(-3, Math.min(3, z3));
-
-    const time = new Date();
-    time.setHours(time.getHours() - i);
-
-    data.push({
-      time: time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-      "ATOM/DOT": parseFloat(z1.toFixed(2)),
-      "SAND/MANA": parseFloat(z2.toFixed(2)),
-      "CRV/CVX": parseFloat(z3.toFixed(2)),
-    });
-  }
-  return data;
-};
+// Static Z-Score history data (to avoid hydration errors)
+const STATIC_ZSCORE_HISTORY = [
+  { time: "00:00", "ATOM/DOT": 0.12, "SAND/MANA": -0.08, "CRV/CVX": 0.25 },
+  { time: "01:00", "ATOM/DOT": 0.34, "SAND/MANA": 0.15, "CRV/CVX": 0.18 },
+  { time: "02:00", "ATOM/DOT": 0.28, "SAND/MANA": 0.42, "CRV/CVX": -0.12 },
+  { time: "03:00", "ATOM/DOT": 0.55, "SAND/MANA": 0.38, "CRV/CVX": -0.28 },
+  { time: "04:00", "ATOM/DOT": 0.72, "SAND/MANA": 0.21, "CRV/CVX": -0.15 },
+  { time: "05:00", "ATOM/DOT": 0.88, "SAND/MANA": -0.12, "CRV/CVX": 0.08 },
+  { time: "06:00", "ATOM/DOT": 0.65, "SAND/MANA": -0.35, "CRV/CVX": 0.32 },
+  { time: "07:00", "ATOM/DOT": 0.42, "SAND/MANA": -0.48, "CRV/CVX": 0.45 },
+  { time: "08:00", "ATOM/DOT": 0.18, "SAND/MANA": -0.32, "CRV/CVX": 0.28 },
+  { time: "09:00", "ATOM/DOT": -0.15, "SAND/MANA": -0.18, "CRV/CVX": 0.12 },
+  { time: "10:00", "ATOM/DOT": -0.38, "SAND/MANA": 0.08, "CRV/CVX": -0.08 },
+  { time: "11:00", "ATOM/DOT": -0.52, "SAND/MANA": 0.25, "CRV/CVX": -0.22 },
+  { time: "12:00", "ATOM/DOT": -0.35, "SAND/MANA": 0.42, "CRV/CVX": -0.35 },
+  { time: "13:00", "ATOM/DOT": -0.12, "SAND/MANA": 0.58, "CRV/CVX": -0.18 },
+  { time: "14:00", "ATOM/DOT": 0.15, "SAND/MANA": 0.72, "CRV/CVX": 0.05 },
+  { time: "15:00", "ATOM/DOT": 0.38, "SAND/MANA": 0.85, "CRV/CVX": 0.22 },
+  { time: "16:00", "ATOM/DOT": 0.55, "SAND/MANA": 0.68, "CRV/CVX": 0.38 },
+  { time: "17:00", "ATOM/DOT": 0.72, "SAND/MANA": 0.45, "CRV/CVX": 0.25 },
+  { time: "18:00", "ATOM/DOT": 0.88, "SAND/MANA": 0.28, "CRV/CVX": 0.12 },
+  { time: "19:00", "ATOM/DOT": 0.95, "SAND/MANA": 0.12, "CRV/CVX": -0.05 },
+  { time: "20:00", "ATOM/DOT": 0.78, "SAND/MANA": -0.05, "CRV/CVX": -0.18 },
+  { time: "21:00", "ATOM/DOT": 0.55, "SAND/MANA": -0.18, "CRV/CVX": -0.08 },
+  { time: "22:00", "ATOM/DOT": 0.32, "SAND/MANA": -0.08, "CRV/CVX": 0.12 },
+  { time: "23:00", "ATOM/DOT": 0.18, "SAND/MANA": 0.05, "CRV/CVX": 0.25 },
+];
 
 // ============================================================================
 // UTILITY COMPONENTS
 // ============================================================================
 
 function LiveClock() {
-  const [time, setTime] = useState<string>("");
-  const [date, setDate] = useState<string>("");
+  const [time, setTime] = useState<string>("--:--:--");
+  const [date, setDate] = useState<string>("--- --, ----");
 
   useEffect(() => {
     const updateTime = () => {
@@ -216,9 +219,9 @@ function LiveClock() {
   }, []);
 
   return (
-    <div className="text-right">
-      <div className="font-mono text-lg text-white">{time}</div>
-      <div className="text-xs text-zinc-500">{date} UTC</div>
+    <div className="text-right" suppressHydrationWarning>
+      <div className="font-mono text-lg text-white" suppressHydrationWarning>{time}</div>
+      <div className="text-xs text-zinc-500" suppressHydrationWarning>{date} UTC</div>
     </div>
   );
 }
@@ -342,6 +345,7 @@ function PairCard({ state, index, zScore }: { state: BotState; index: number; zS
   const allocations = ["40%", "35%", "25%"];
   const colors = ["text-blue-400", "text-purple-400", "text-orange-400"];
   const bgColors = ["bg-blue-500/10", "bg-purple-500/10", "bg-orange-500/10"];
+  const defaultZScores = [0.65, 0.22, 0.25]; // Static fallback values
 
   const Icon = icons[index] || Activity;
   const name = names[index] || "Pair";
@@ -349,7 +353,7 @@ function PairCard({ state, index, zScore }: { state: BotState; index: number; zS
   const color = colors[index] || "text-indigo-400";
   const bgColor = bgColors[index] || "bg-indigo-500/10";
 
-  const displayZ = zScore ?? (Math.random() * 4 - 2);
+  const displayZ = zScore ?? defaultZScores[index] ?? 0;
   const zColor = Math.abs(displayZ) > 2 ? "text-rose-400" :
                  Math.abs(displayZ) > 1.5 ? "text-amber-400" : "text-emerald-400";
 
@@ -582,11 +586,17 @@ export default function Dashboard() {
   const [sentiment, setSentiment] = useState<MarketSentiment>(MOCK_SENTIMENT);
   const [tradeLogs, setTradeLogs] = useState<TradeLog[]>(MOCK_TRADE_LOGS);
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>(MOCK_SYSTEM_LOGS);
-  const [zscoreHistory, setZscoreHistory] = useState(generateMockZScoreHistory());
+  const [zscoreHistory] = useState(STATIC_ZSCORE_HISTORY);
   const [isConnected, setIsConnected] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [lastRefresh, setLastRefresh] = useState<string>(INITIAL_TIMESTAMP);
   const [isLoading, setIsLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Only render dynamic content after mount to avoid hydration errors
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Calculate statistics
   const totalTrades = tradeLogs.filter(l => l.type === "ENTRY" || l.type === "EXIT").length;
@@ -653,7 +663,7 @@ export default function Dashboard() {
       }
 
       setIsConnected(true);
-      setLastRefresh(new Date());
+      setLastRefresh(new Date().toISOString());
     } catch (error) {
       console.error("Failed to fetch data:", error);
       setIsConnected(false);
@@ -670,14 +680,6 @@ export default function Dashboard() {
       return () => clearInterval(interval);
     }
   }, [fetchData, autoRefresh]);
-
-  // Refresh Z-Score chart data periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setZscoreHistory(generateMockZScoreHistory());
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const isTradingHalted = sentiment.risk_score > 75;
 
@@ -919,7 +921,7 @@ export default function Dashboard() {
             <span>•</span>
             <span>Simulation Mode</span>
             <span>•</span>
-            <span>Last refresh: {lastRefresh.toLocaleTimeString("en-US", { timeZone: "UTC" })} UTC</span>
+            <span>Last refresh: {mounted ? new Date(lastRefresh).toLocaleTimeString("en-US", { timeZone: "UTC" }) : "--:--:--"} UTC</span>
             <span>•</span>
             <span className={isConnected ? "text-emerald-500" : "text-rose-500"}>
               {isConnected ? "Connected" : "Disconnected"}
