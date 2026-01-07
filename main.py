@@ -217,25 +217,59 @@ def fetch_ohlcv(exchange, symbol: str, timeframe: str = "1h", limit: int = 100) 
 
 def calculate_zscore(price_a: pd.Series, price_b: pd.Series, window: int = 50) -> pd.Series:
     """
-    Calculate Z-Score of the price ratio (A/B).
+    Calculate Z-Score of the LOG price ratio (A/B).
 
-    Z = (ratio - rolling_mean) / rolling_std
+    Using log-ratio ensures mathematical symmetry for Long/Short signals.
+    Z = (log_ratio - rolling_mean) / rolling_std
 
     Positive Z: A is expensive relative to B (Short A, Long B)
     Negative Z: A is cheap relative to B (Long A, Short B)
     """
-    ratio = price_a / price_b
-    rolling_mean = ratio.rolling(window=window).mean()
-    rolling_std = ratio.rolling(window=window).std()
+    # Use LOG-RATIO for symmetric signals (V2.0 upgrade)
+    log_ratio = np.log(price_a / price_b)
+    rolling_mean = log_ratio.rolling(window=window).mean()
+    rolling_std = log_ratio.rolling(window=window).std()
 
-    zscore = (ratio - rolling_mean) / rolling_std
+    zscore = (log_ratio - rolling_mean) / rolling_std
     return zscore
+
+
+def calculate_lambda(log_ratio: pd.Series) -> float:
+    """
+    Calculate Lambda (mean-reversion speed) via OLS on spread changes.
+    
+    Lambda < 0 indicates mean reversion (GOOD).
+    Lambda >= 0 indicates trending/divergence (REJECT - risk of ruin).
+    
+    Formula: spread_diff = alpha + lambda * spread_lag + epsilon
+    """
+    spread_lag = log_ratio.shift(1).dropna()
+    spread_diff = log_ratio.diff().dropna()
+    
+    # Align indices
+    spread_lag = spread_lag.iloc[1:]
+    spread_diff = spread_diff.iloc[1:]
+    
+    if len(spread_lag) < 10:
+        return 0.0  # Not enough data, fail safe
+    
+    # OLS: Lambda = cov(diff, lag) / var(lag)
+    cov_matrix = np.cov(spread_diff, spread_lag)
+    variance = np.var(spread_lag)
+    
+    if variance == 0:
+        return 0.0  # Avoid division by zero
+    
+    lambda_coef = cov_matrix[0, 1] / variance
+    return lambda_coef
 
 
 def get_current_zscore(exchange, pair: dict) -> Optional[tuple[float, float]]:
     """
-    Get current Z-Score and price ratio for a trading pair.
-    Returns (zscore, ratio) or None on error.
+    Get current Z-Score and log-ratio for a trading pair.
+    Returns (zscore, log_ratio) or None on error.
+    
+    SAFETY: Rejects pairs where Lambda >= 0 (non-mean-reverting).
     """
     # Fetch OHLCV for both assets
     df_a = fetch_ohlcv(exchange, pair["asset_a"], TIMEFRAME, OHLCV_LIMIT)
@@ -243,6 +277,19 @@ def get_current_zscore(exchange, pair: dict) -> Optional[tuple[float, float]]:
 
     if df_a is None or df_b is None:
         return None
+
+    # Calculate log-ratio for Lambda check
+    log_ratio = np.log(df_a["close"] / df_b["close"])
+    
+    # LAMBDA SAFETY CHECK (V2.0)
+    lambda_coef = calculate_lambda(log_ratio)
+    if lambda_coef >= 0:
+        log_warning(f"{pair['symbol']}: Lambda={lambda_coef:.4f} >= 0 (TRENDING). Skipping pair.")
+        return None
+    
+    # Log Lambda for monitoring (informational)
+    half_life = -np.log(2) / lambda_coef if lambda_coef < 0 else float('inf')
+    log_info(f"{pair['symbol']}: Lambda={lambda_coef:.4f}, Half-Life={half_life:.1f}h (mean-reverting ✓)")
 
     # Calculate Z-Score
     zscore_series = calculate_zscore(df_a["close"], df_b["close"], ZSCORE_WINDOW)
@@ -252,9 +299,9 @@ def get_current_zscore(exchange, pair: dict) -> Optional[tuple[float, float]]:
         return None
 
     current_zscore = zscore_series.iloc[-1]
-    current_ratio = (df_a["close"].iloc[-1] / df_b["close"].iloc[-1])
+    current_log_ratio = log_ratio.iloc[-1]
 
-    return (current_zscore, current_ratio)
+    return (current_zscore, current_log_ratio)
 
 
 # ============================================================================
