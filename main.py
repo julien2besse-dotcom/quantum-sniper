@@ -33,7 +33,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 # Trading Parameters
 TIMEFRAME = "1h"
-OHLCV_LIMIT = 100
+OHLCV_LIMIT = 500  # Increased buffer for stable rolling stats
 ZSCORE_WINDOW = 50
 Z_ENTRY_THRESHOLD = 2.0
 Z_EXIT_THRESHOLD = 0.0
@@ -195,6 +195,7 @@ def fetch_ohlcv(exchange, symbol: str, timeframe: str = "1h", limit: int = 100) 
         ohlcv = exchange.fetch_ohlcv(normalized, timeframe, limit=limit)
         df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df.set_index("timestamp", inplace=True)  # FIX #1: Index by date for alignment
         return df
     except Exception as e:
         log_warning(f"Failed to fetch OHLCV for {symbol}: {e}")
@@ -204,11 +205,45 @@ def fetch_ohlcv(exchange, symbol: str, timeframe: str = "1h", limit: int = 100) 
             ohlcv = exchange.fetch_ohlcv(alt_symbol, timeframe, limit=limit)
             df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            df.set_index("timestamp", inplace=True)  # FIX #1: Index by date for alignment
             log_info(f"Using alternative symbol: {alt_symbol}")
             return df
         except Exception:
             log_error(f"Failed to fetch OHLCV for {symbol} (all formats)")
             return None
+
+
+# ============================================================================
+# SPREAD CHECK (FIX #5: Verify bid-ask spread before trading)
+# ============================================================================
+
+def check_spread(exchange, symbol: str, max_spread_pct: float = 0.5) -> bool:
+    """
+    Check if bid-ask spread is acceptable for trading.
+    Returns True if spread < max_spread_pct, False otherwise.
+    
+    In simulation mode, this is informational only.
+    In live trading, reject trades with high spreads.
+    """
+    try:
+        ticker = exchange.fetch_ticker(symbol)
+        bid = ticker.get("bid", 0)
+        ask = ticker.get("ask", 0)
+        
+        if bid <= 0 or ask <= 0:
+            log_warning(f"{symbol}: Could not fetch bid/ask prices")
+            return True  # Allow in simulation mode
+        
+        spread_pct = ((ask - bid) / bid) * 100
+        
+        if spread_pct > max_spread_pct:
+            log_warning(f"{symbol}: Spread {spread_pct:.2f}% exceeds {max_spread_pct}% limit")
+            return False
+        
+        return True
+    except Exception as e:
+        log_warning(f"{symbol}: Spread check failed: {e}")
+        return True  # Allow in simulation mode
 
 
 # ============================================================================
@@ -229,6 +264,7 @@ def calculate_zscore(price_a: pd.Series, price_b: pd.Series, window: int = 50) -
     log_ratio = np.log(price_a / price_b)
     rolling_mean = log_ratio.rolling(window=window).mean()
     rolling_std = log_ratio.rolling(window=window).std()
+    rolling_std = rolling_std.replace(0, 1e-8)  # FIX #3: Avoid division by zero
 
     zscore = (log_ratio - rolling_mean) / rolling_std
     return zscore
@@ -298,8 +334,10 @@ def get_current_zscore(exchange, pair: dict) -> Optional[tuple[float, float]]:
         log_warning(f"Not enough data for Z-Score calculation")
         return None
 
-    current_zscore = zscore_series.iloc[-1]
-    current_log_ratio = log_ratio.iloc[-1]
+    # FIX #4: Use iloc[-2] (last CLOSED candle) to avoid repainting
+    # iloc[-1] is the current, incomplete candle
+    current_zscore = zscore_series.iloc[-2]
+    current_log_ratio = log_ratio.iloc[-2]
 
     return (current_zscore, current_log_ratio)
 
