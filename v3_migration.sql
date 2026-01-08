@@ -11,13 +11,13 @@
 -- ============================================================================
 
 -- Step 1: Close existing positions (log final EXIT trades)
-INSERT INTO trade_logs (timestamp, pair, type, side, ratio, z_score, pnl_percent, comment)
+INSERT INTO trade_logs (timestamp, pair, type, side, price, z_score, pnl_percent, comment)
 SELECT 
     NOW() AT TIME ZONE 'UTC',
     symbol,
     'EXIT',
     position_type,
-    entry_ratio,
+    entry_ratio,  -- This goes into 'price' column
     0.0,  -- Final Z unknown, marking 0
     0.0,  -- PnL unknown at forced close
     'FORCED EXIT: Pair rotation to V3.0 portfolio'
