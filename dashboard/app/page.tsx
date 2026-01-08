@@ -98,7 +98,7 @@ const INITIAL_TIMESTAMP = "2026-01-05T12:00:00.000Z";
 
 const MOCK_BOT_STATES: BotState[] = [
   {
-    symbol: "ATOM/DOT",
+    symbol: "AVAX/NEAR",
     is_active: false,
     position_type: null,
     entry_z: null,
@@ -106,7 +106,7 @@ const MOCK_BOT_STATES: BotState[] = [
     last_updated: INITIAL_TIMESTAMP,
   },
   {
-    symbol: "SAND/MANA",
+    symbol: "SOL/LTC",
     is_active: false,
     position_type: null,
     entry_z: null,
@@ -114,7 +114,7 @@ const MOCK_BOT_STATES: BotState[] = [
     last_updated: INITIAL_TIMESTAMP,
   },
   {
-    symbol: "CRV/CVX",
+    symbol: "NEAR/FIL",
     is_active: false,
     position_type: null,
     entry_z: null,
@@ -174,7 +174,7 @@ const processZScoreHistory = (logs: SystemLog[]) => {
 
   // Parse logs
   // Log format: "Z-Score calculated: 0.8474 (no signal)"
-  // Source: "ATOM/DOT"
+  // Source: "AVAX/NEAR" (or other new pairs)
   logs.forEach(log => {
     if (log.message.includes("Z-Score calculated")) {
       const match = log.message.match(/Z-Score calculated:\s*([-\d.]+)/);
@@ -353,27 +353,28 @@ function StatCard({
 
 function PairCard({ state, index, zScore }: { state: BotState; index: number; zScore?: number }) {
   // Map configuration by Symbol instead of Index to prevent sorting mismatches
+  // V3.0: New pairs
   const config: Record<string, { name: string; icon: any; allocation: string; color: string; bgColor: string }> = {
-    "ATOM/DOT": {
-      name: "The Shield",
-      icon: Shield,
-      allocation: "40%",
-      color: "text-blue-400",
-      bgColor: "bg-blue-500/10"
-    },
-    "SAND/MANA": {
-      name: "The Stability",
-      icon: BarChart3,
-      allocation: "35%",
-      color: "text-purple-400",
-      bgColor: "bg-purple-500/10"
-    },
-    "CRV/CVX": {
-      name: "The Rocket",
+    "AVAX/NEAR": {
+      name: "The Pioneer",
       icon: Zap,
-      allocation: "25%",
-      color: "text-orange-400",
-      bgColor: "bg-orange-500/10"
+      allocation: "40%",
+      color: "text-red-400",
+      bgColor: "bg-red-500/10"
+    },
+    "SOL/LTC": {
+      name: "The Classic",
+      icon: Shield,
+      allocation: "30%",
+      color: "text-green-400",
+      bgColor: "bg-green-500/10"
+    },
+    "NEAR/FIL": {
+      name: "The Storage",
+      icon: BarChart3,
+      allocation: "30%",
+      color: "text-cyan-400",
+      bgColor: "bg-cyan-500/10"
     }
   };
 
@@ -640,7 +641,7 @@ export default function Dashboard() {
   // Extract Z-scores from system logs (fallback when current_z column doesn't exist)
   const extractZScoresFromLogs = (logs: SystemLog[]): Record<string, number> => {
     const zScores: Record<string, number> = {};
-    const pairNames = ["ATOM/DOT", "SAND/MANA", "CRV/CVX"];
+    const pairNames = ["AVAX/NEAR", "SOL/LTC", "NEAR/FIL"];
 
     for (const pair of pairNames) {
       const log = logs.find(l => l.source === pair && l.message.includes("Z-Score calculated"));
@@ -886,16 +887,16 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-4 text-xs">
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-blue-400 rounded" />
-                  <span className="text-zinc-500">ATOM/DOT</span>
+                  <div className="w-3 h-0.5 bg-red-400 rounded" />
+                  <span className="text-zinc-500">AVAX/NEAR</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-purple-400 rounded" />
-                  <span className="text-zinc-500">SAND/MANA</span>
+                  <div className="w-3 h-0.5 bg-green-400 rounded" />
+                  <span className="text-zinc-500">SOL/LTC</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-3 h-0.5 bg-orange-400 rounded" />
-                  <span className="text-zinc-500">CRV/CVX</span>
+                  <div className="w-3 h-0.5 bg-cyan-400 rounded" />
+                  <span className="text-zinc-500">NEAR/FIL</span>
                 </div>
               </div>
             </div>
@@ -929,11 +930,10 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey={() => 2} stroke="#f43f5e" strokeDasharray="5 5" dot={false} />
                   <Line type="monotone" dataKey={() => -2} stroke="#f43f5e" strokeDasharray="5 5" dot={false} />
                   <Line type="monotone" dataKey={() => 0} stroke="#52525b" strokeDasharray="3 3" dot={false} />
-                  {/* Z-Score lines */}
-                  {/* Z-Score lines - Matching PairCard colors */}
-                  <Line type="monotone" dataKey="ATOM/DOT" stroke="#3b82f6" strokeWidth={2} dot={false} />  {/* Blue-500 */}
-                  <Line type="monotone" dataKey="SAND/MANA" stroke="#a855f7" strokeWidth={2} dot={false} /> {/* Purple-500 */}
-                  <Line type="monotone" dataKey="CRV/CVX" stroke="#f97316" strokeWidth={2} dot={false} />   {/* Orange-500 */}
+                  {/* Z-Score lines - V3.0: New pairs */}
+                  <Line type="monotone" dataKey="AVAX/NEAR" stroke="#f87171" strokeWidth={2} dot={false} />  {/* Red-400 */}
+                  <Line type="monotone" dataKey="SOL/LTC" stroke="#4ade80" strokeWidth={2} dot={false} />    {/* Green-400 */}
+                  <Line type="monotone" dataKey="NEAR/FIL" stroke="#22d3ee" strokeWidth={2} dot={false} />   {/* Cyan-400 */}
                 </LineChart>
               </ResponsiveContainer>
             </div>

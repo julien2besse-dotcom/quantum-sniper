@@ -40,28 +40,34 @@ Z_EXIT_THRESHOLD = 0.0
 Z_STOP_LOSS = 4.0  # Hard stop if Z exceeds this
 MAX_RISK_SCORE = 75  # Don't trade if risk > 75
 
-# The Survivor Basket - 3 Trading Pairs
+# New Pair Portfolio (V3.0) - Custom Z-thresholds per pair
 PAIRS = [
     {
-        "symbol": "ATOM/DOT",
-        "asset_a": "ATOM/USDT",
-        "asset_b": "DOT/USDT",
+        "symbol": "AVAX/NEAR",
+        "asset_a": "AVAX/USDT",
+        "asset_b": "NEAR/USDT",
         "allocation": 0.40,
-        "name": "The Shield",
+        "name": "The Pioneer",
+        "z_entry": 1.6,
+        "z_exit": -0.1,
     },
     {
-        "symbol": "SAND/MANA",
-        "asset_a": "SAND/USDT",
-        "asset_b": "MANA/USDT",
-        "allocation": 0.35,
-        "name": "The Stability",
+        "symbol": "SOL/LTC",
+        "asset_a": "SOL/USDT",
+        "asset_b": "LTC/USDT",
+        "allocation": 0.30,
+        "name": "The Classic",
+        "z_entry": 1.7,
+        "z_exit": -0.1,
     },
     {
-        "symbol": "CRV/CVX",
-        "asset_a": "CRV/USDT",
-        "asset_b": "CVX/USDT",
-        "allocation": 0.25,
-        "name": "The Rocket",
+        "symbol": "NEAR/FIL",
+        "asset_a": "NEAR/USDT",
+        "asset_b": "FIL/USDT",
+        "allocation": 0.30,
+        "name": "The Storage",
+        "z_entry": 2.3,
+        "z_exit": -0.2,
     },
 ]
 
@@ -141,12 +147,9 @@ def create_exchange():
     import ccxt
     
     # List of exchanges to try (in order of preference)
+    # V3.0: MEXC first (best liquidity for altcoin pairs), OKX second
     exchanges_to_try = [
-        ("binance", {
-            "enableRateLimit": True,
-            "options": {"defaultType": "spot", "adjustForTimeDifference": True},
-        }),
-        ("bybit", {
+        ("mexc", {
             "enableRateLimit": True,
             "options": {"defaultType": "spot"},
         }),
@@ -154,8 +157,13 @@ def create_exchange():
             "enableRateLimit": True,
             "options": {"defaultType": "spot"},
         }),
-        ("kraken", {
+        ("binance", {
             "enableRateLimit": True,
+            "options": {"defaultType": "spot", "adjustForTimeDifference": True},
+        }),
+        ("bybit", {
+            "enableRateLimit": True,
+            "options": {"defaultType": "spot"},
         }),
     ]
     
@@ -457,7 +465,12 @@ def process_pair(exchange, client, pair: dict) -> None:
         return
 
     zscore, ratio = result
-    log_info(f"Z-Score calculated: {zscore:.4f} (no signal)", source=symbol, details=f"Ratio: {ratio:.4f}")
+    
+    # Get per-pair thresholds (with fallback to global defaults)
+    z_entry = pair.get("z_entry", Z_ENTRY_THRESHOLD)
+    z_exit = pair.get("z_exit", Z_EXIT_THRESHOLD)
+    
+    log_info(f"Z-Score calculated: {zscore:.4f} (thresholds: ±{z_entry})", source=symbol, details=f"Ratio: {ratio:.4f}")
 
     # Update current Z-Score in database (for dashboard display)
     try:
@@ -483,9 +496,9 @@ def process_pair(exchange, client, pair: dict) -> None:
         # log_info(f"Status: SCANNING (no position)") # Start logging this only if necessary to avoid noise
 
         # Check for SHORT A / LONG B signal (Z > threshold)
-        if zscore > Z_ENTRY_THRESHOLD:
+        if zscore > z_entry:
             position = "SHORT_A_LONG_B"
-            log_signal(f"Z={zscore:.2f} > {Z_ENTRY_THRESHOLD} → {position}")
+            log_signal(f"Z={zscore:.2f} > {z_entry} → {position}")
 
             # Update state
             update_bot_state(client, symbol, {
@@ -505,9 +518,9 @@ def process_pair(exchange, client, pair: dict) -> None:
             log_trade(f"SIMULATED ENTRY → {position} @ Z={zscore:.2f}")
 
         # Check for LONG A / SHORT B signal (Z < -threshold)
-        elif zscore < -Z_ENTRY_THRESHOLD:
+        elif zscore < -z_entry:
             position = "LONG_A_SHORT_B"
-            log_signal(f"Z={zscore:.2f} < -{Z_ENTRY_THRESHOLD} → {position}")
+            log_signal(f"Z={zscore:.2f} < -{z_entry} → {position}")
 
             # Update state
             update_bot_state(client, symbol, {
@@ -528,7 +541,7 @@ def process_pair(exchange, client, pair: dict) -> None:
 
 
         else:
-            log_info(f"No signal. Z={zscore:.2f} within [-{Z_ENTRY_THRESHOLD}, +{Z_ENTRY_THRESHOLD}]")
+            log_info(f"No signal. Z={zscore:.2f} within [-{z_entry}, +{z_entry}]")
 
     # ========================================================================
     # EXIT LOGIC
@@ -540,14 +553,14 @@ def process_pair(exchange, client, pair: dict) -> None:
         should_exit = False
         exit_reason = ""
 
-        # Mean reversion exit (Z crosses 0)
-        if position_type == "SHORT_A_LONG_B" and zscore <= Z_EXIT_THRESHOLD:
+        # Mean reversion exit (Z crosses exit threshold)
+        if position_type == "SHORT_A_LONG_B" and zscore <= z_exit:
             should_exit = True
-            exit_reason = f"Mean reversion: Z={zscore:.2f} crossed below {Z_EXIT_THRESHOLD}"
+            exit_reason = f"Mean reversion: Z={zscore:.2f} crossed below {z_exit}"
 
-        elif position_type == "LONG_A_SHORT_B" and zscore >= Z_EXIT_THRESHOLD:
+        elif position_type == "LONG_A_SHORT_B" and zscore >= -z_exit:
             should_exit = True
-            exit_reason = f"Mean reversion: Z={zscore:.2f} crossed above {Z_EXIT_THRESHOLD}"
+            exit_reason = f"Mean reversion: Z={zscore:.2f} crossed above {-z_exit}"
 
         # Stop loss exit (Z moves further against position)
         elif abs(zscore) > Z_STOP_LOSS:
