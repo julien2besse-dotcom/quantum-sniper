@@ -31,16 +31,19 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 # Keywords to filter relevant news (for RSS pre-filtering)
+# V3.0: New pairs - AVAX/NEAR, SOL/LTC, NEAR/FIL
 KEYWORDS = [
-    "Cosmos", "ATOM",
-    "Polkadot", "DOT",
-    "Curve", "CRV", "CVX", "Convex",
-    "Sandbox", "SAND",
-    "Decentraland", "MANA",
-    "Hack", "Exploit", "Vulnerability",
-    "SEC", "Regulation", "Ban",
-    "Crash", "Dump", "Liquidation",
-    "Binance", "Exchange",
+    # Primary assets
+    "Avalanche", "AVAX",
+    "NEAR Protocol", "NEAR",
+    "Solana", "SOL",
+    "Litecoin", "LTC",
+    "Filecoin", "FIL",
+    # Risk keywords
+    "Hack", "Exploit", "Vulnerability", "Breach",
+    "SEC", "Regulation", "Ban", "Lawsuit",
+    "Crash", "Dump", "Liquidation", "Collapse",
+    "MEXC", "OKX", "Binance", "Exchange",
 ]
 
 # RSS Feeds to scan (Initial context)
@@ -163,21 +166,26 @@ def analyze_with_gemini(headlines: list[dict]) -> Optional[dict]:
     log_info("Performing analysis with Google Search Grounding...")
 
     prompt = f"""
-    You are a professional crypto market risk analyst.
+    You are a professional crypto market risk analyst for a pairs trading bot.
     
     Task:
     1. A list of recent RSS headlines is provided below for context.
-    2. CRITICAL: Use your Google Search tool to find the VERY LATEST updates (last 24 hours) for the following assets:
-       - Cosmos (ATOM) / Polkadot (DOT)
-       - Sandbox (SAND) / Decentraland (MANA)
-       - Curve (CRV) / Convex (CVX)
+    2. CRITICAL: Use your Google Search tool to find the VERY LATEST updates (last 24 hours) for these SPECIFIC assets:
+       
+       TARGET TRADING PAIRS (V3.0 Portfolio):
+       - Avalanche (AVAX) + NEAR Protocol (NEAR) [The Pioneer - 40%]
+       - Solana (SOL) + Litecoin (LTC) [The Classic - 30%]
+       - NEAR Protocol (NEAR) + Filecoin (FIL) [The Storage - 30%]
     
-    3. Look specifically for:
-       - Security breaches, hacks, or exploits.
-       - Major regulatory enforcement actions (SEC, bans).
-       - Sudden market crashes or liquidity crises.
+    3. For EACH asset, search for:
+       - Security breaches, hacks, or smart contract exploits
+       - Network outages or performance issues
+       - Major exchange delistings or liquidity problems
+       - Regulatory enforcement actions (SEC, bans)
+       - Large whale movements or unusual trading activity
+       - Protocol upgrades or hard forks that could cause volatility
     
-    RSS CONTEXT (Use as a starting point):
+    RSS CONTEXT (Use as a starting point, but search for more recent info):
     {headlines_text}
     
     OUTPUT FORMAT:
@@ -185,14 +193,14 @@ def analyze_with_gemini(headlines: list[dict]) -> Optional[dict]:
     {{
         "risk_score": <integer 0-100, where 0=safe, 100=extreme panic>,
         "sentiment": "<SAFE|CAUTION|CRITICAL>",
-        "summary": "<Concise summary of current market risks found via search. Cite verified sources if possible.>"
+        "summary": "<Structured summary with sections: [AVAX] ... [SOL] ... [NEAR] ... [LTC] ... [FIL] ... [MARKET] ...>"
     }}
     
     Risk Guide:
-    - 0-30: SAFE (Normal volatility)
-    - 31-50: SAFE (Minor bad news)
-    - 51-75: CAUTION (Hacks, major FUD, or downtrend)
-    - 76-100: CRITICAL (Exchange collapse, protocol hack, systemic risk)
+    - 0-30: SAFE (Normal volatility, all clear)
+    - 31-50: SAFE (Minor news, no actionable risk)
+    - 51-75: CAUTION (Notable concerns, monitor closely)
+    - 76-100: CRITICAL (Active threats, consider pausing trading)
     """
 
     try:
