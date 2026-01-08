@@ -861,16 +861,79 @@ export default function Dashboard() {
         </div>
 
         {/* ================================================================ */}
-        {/* AI SUMMARY */}
+        {/* AI SUMMARY - Enhanced V3.0 */}
         {/* ================================================================ */}
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Terminal className="w-5 h-5 text-indigo-400" />
-            <h2 className="font-semibold text-zinc-300">AI Market Analysis</h2>
+        <div className="bg-gradient-to-br from-zinc-900/80 to-zinc-900/40 border border-zinc-800 rounded-xl p-6 relative overflow-hidden">
+          {/* Background glow effect */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl" />
+
+          {/* Header with live indicator */}
+          <div className="flex items-center justify-between mb-5 relative">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-500/20 rounded-lg">
+                <Terminal className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-white flex items-center gap-2">
+                  AI Market Analysis
+                  <span className="flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 text-indigo-400 text-xs rounded-full">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                    Gemini 3
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-500">Real-time risk assessment powered by Google AI</p>
+              </div>
+            </div>
+
+            {/* Risk Score Badge */}
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${sentiment.risk_score <= 50
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : sentiment.risk_score <= 75
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              }`}>
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-sm font-semibold">{sentiment.sentiment}</span>
+              <span className="text-xs opacity-70">({sentiment.risk_score}/100)</span>
+            </div>
           </div>
-          <div className="bg-zinc-950 rounded-lg p-4 font-mono text-sm">
-            <div className="text-emerald-400 mb-2">$ gemini --analyze --risk-assessment</div>
-            <div className="text-zinc-300 leading-relaxed whitespace-pre-wrap">{sentiment.summary}</div>
+
+          {/* Analysis Content */}
+          <div className="bg-zinc-950/80 rounded-xl p-5 border border-zinc-800/50 relative">
+            {/* Terminal header */}
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-zinc-800/50">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-rose-500/80" />
+                <div className="w-3 h-3 rounded-full bg-amber-500/80" />
+                <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
+              </div>
+              <span className="text-zinc-500 text-xs font-mono ml-2">quantum-sniper ~ gemini-analysis</span>
+            </div>
+
+            {/* Command */}
+            <div className="font-mono text-sm mb-4">
+              <span className="text-emerald-400">$</span>
+              <span className="text-zinc-400 ml-2">gemini</span>
+              <span className="text-indigo-400 ml-2">--analyze</span>
+              <span className="text-purple-400 ml-1">--pairs=AVAX,SOL,NEAR,LTC,FIL</span>
+              <span className="text-amber-400 ml-1">--risk-assessment</span>
+            </div>
+
+            {/* Analysis output */}
+            <div className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap font-mono">
+              {sentiment.summary || "Awaiting analysis from Gemini AI..."}
+            </div>
+
+            {/* Footer with timestamp */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-800/50 text-xs text-zinc-500">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Analysis complete</span>
+              </div>
+              <span className="font-mono">
+                Last updated: {new Date(sentiment.timestamp).toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 
